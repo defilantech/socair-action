@@ -59,7 +59,7 @@ ARM64) arch=arm64 ;;
 *) fail "Socair publishes binaries for amd64 and arm64 only; this runner is '${RUNNER_ARCH:-unknown}'" ;;
 esac
 
-for tool in curl gh awk; do
+for tool in curl gh awk jq; do
 	command -v "$tool" >/dev/null 2>&1 || fail "$tool is required and was not found on this runner (GitHub-hosted runners have it)"
 done
 command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1 ||
