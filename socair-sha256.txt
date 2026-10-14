@@ -1,0 +1,15 @@
+# The SHA-256 of each Socair release binary this action pins, one line per
+# binary in the format of the release's SHA256SUMS: <sha256>  <asset name>.
+#
+# scripts/install.sh refuses a binary of a version listed here unless it has
+# exactly this hash, before it checks SHA256SUMS and the build provenance.
+# A version with no lines here is checked against SHA256SUMS and its build
+# provenance only. scripts/check-pins.sh holds this file to the release.
+#
+# 0.1.0-rc.3: checked against the release's SHA256SUMS, the digests GitHub
+# records for the release assets, and the subjects of the build-provenance
+# attestation signed by release.yml at refs/tags/v0.1.0-rc.3.
+2ea05b9374759429b41b5824fd2e0c9e78ce4995d17b3c6f20854224d17b4f26  socair_0.1.0-rc.3_darwin_amd64
+57049219f67e651790671e31f43bfe2d66209abdfd1594b3fc7a8d08c2aeaf6e  socair_0.1.0-rc.3_darwin_arm64
+5c008f3529b8bbc1dd83a483723c4b9056332878719de4a66b56c40f2383e3b3  socair_0.1.0-rc.3_linux_amd64
+5606bbde2ee3b7e95421eb12a7a50c00a9cfbb904aa822f9528d722479458971  socair_0.1.0-rc.3_linux_arm64

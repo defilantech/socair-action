@@ -1,0 +1,120 @@
+name: Socair model scan
+description: Scan a model artifact with a verified Socair binary, upload the results to code scanning, and gate the job on the promotion state.
+author: Defilan Technologies
+branding:
+  icon: shield
+  color: gray-dark
+
+inputs:
+  path:
+    description: >-
+      The model artifact to scan: a GGUF, safetensors, or pickle file, or a
+      model directory (a Hugging Face repository or cache snapshot), relative
+      to the workspace or absolute. With upload-sarif, it must be under
+      checkout-path.
+    required: true
+  socair-version:
+    description: >-
+      The Socair release to run, without the leading v. The default is the
+      release this version of the action pins by SHA-256. Another version is
+      checked against its release's SHA256SUMS and build provenance only.
+    required: false
+    default: "0.1.0-rc.3"
+  fail-on:
+    description: >-
+      The promotion states that fail the job, separated by spaces or commas:
+      withheld, authorized_with_conditions, escalated, or none. The default
+      fails every state but authorized. Remove authorized_with_conditions to
+      let a report with accepted gaps pass. A state the action does not know
+      fails the job whatever this says. The gate never changes the report's
+      state.
+    required: false
+    default: "withheld authorized_with_conditions escalated"
+  upload-sarif:
+    description: >-
+      true to upload the results to GitHub code scanning (the job needs
+      security-events: write), false to skip the upload and the SARIF file.
+    required: false
+    default: "true"
+  category:
+    description: >-
+      The code scanning category for this model's results. The default is
+      socair:<path from the repository root>, one per model and the same
+      across revisions, so a new revision's analysis closes the alerts the
+      last one raised.
+    required: false
+    default: ""
+  checkout-path:
+    description: >-
+      The directory the repository is checked out at. The SARIF locations are
+      written relative to it, and it is passed to upload-sarif.
+    required: false
+    default: ${{ github.workspace }}
+  output-dir:
+    description: >-
+      The directory to write report.json and report.sarif to. It must not
+      already hold either file. The default is a new directory under the
+      runner's temporary directory.
+    required: false
+    default: ""
+
+outputs:
+  promotion-state:
+    description: The promotion state in the report (promotion_authorization.state).
+    value: ${{ steps.scan.outputs.promotion-state }}
+  report:
+    description: The path of the report JSON (socair.report/v1).
+    value: ${{ steps.scan.outputs.report }}
+  sarif:
+    description: The path of the SARIF log that was uploaded, or empty when upload-sarif is false.
+    value: ${{ steps.scan.outputs.sarif }}
+  artifact-sha256:
+    description: The artifact's SHA-256 as the report records it (for a model directory, the digest of its manifest).
+    value: ${{ steps.scan.outputs.artifact-sha256 }}
+  category:
+    description: The code scanning category the results were uploaded under.
+    value: ${{ steps.scan.outputs.category }}
+
+runs:
+  using: composite
+  steps:
+    - name: Refuse a runner Socair has no binary for
+      if: runner.os != 'Linux' && runner.os != 'macOS'
+      shell: bash
+      run: |
+        echo "::error title=Socair binary not verified::Socair publishes binaries for Linux and macOS only; this runner is ${RUNNER_OS}. Run this action on a Linux or macOS runner."
+        exit 1
+
+    - name: Download Socair and verify it before it runs
+      id: install
+      shell: bash
+      env:
+        VERSION_INPUT: ${{ inputs.socair-version }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/install.sh"
+
+    - name: Scan the model
+      id: scan
+      shell: bash
+      env:
+        SOCAIR: ${{ steps.install.outputs.socair }}
+        MODEL_PATH: ${{ inputs.path }}
+        UPLOAD_SARIF: ${{ inputs.upload-sarif }}
+        CATEGORY: ${{ inputs.category }}
+        CHECKOUT_PATH: ${{ inputs.checkout-path }}
+        OUTPUT_DIR: ${{ inputs.output-dir }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/scan.sh"
+
+    - name: Upload the results to code scanning
+      if: inputs.upload-sarif == 'true'
+      uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarif }}
+        category: ${{ steps.scan.outputs.category }}
+        checkout_path: ${{ inputs.checkout-path }}
+
+    - name: Gate on the promotion state
+      shell: bash
+      env:
+        FAIL_ON: ${{ inputs.fail-on }}
+        REPORT: ${{ steps.scan.outputs.report }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/gate.sh"
